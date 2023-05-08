@@ -1,0 +1,177 @@
+# -*- coding: utf-8 -*-
+"""
+
+This is a program for web crawling of stock close prices from the Taiwan stock 
+exchange market.
+"""
+
+import sys # this is used to apply system commands for file management.
+import pandas as pd
+#from datetime import datetime #匯入datetime, 以便操作有關系統時間相關的運算
+from pylab import mpl #從pylab 匯入mpl
+import urllib.request #匯入urllib.request及csv 網頁讀取的套件 & 處理csv格式的套件
+import csv # this is used to read and write the file of csv format. 
+import os #python裡的os套件是提供有關作業系統操作呼叫的功能，例如對檔案進行重新命名、刪除, 變更目錄等
+          #系統級別的操作
+import time #這是一個用來操作與時間有關的套件, 例如需要使time.sleep()來暫時中斷執行時#請把以下段落經常寫在處理中文的文字與數字處理的程式裡
+#以mpl裡的rcParams(runtime configuration))來指定預設字型:
+#在window系統下使用上述中文環境設定 
+mpl.rcParams['font.sans-serif'] = ['Microsoft YaHei'] 
+#在APPLE mac的中文顯示之設定 以mpl裡的rcParams來指定預設字型:解決plot不能顯示中文問題 
+#mpl.rcParams['font.sans-serif'] = ['Arial Unicode MS']   
+mpl.rcParams['axes.unicode_minus'] = False 
+# 以mpl裡的rcParams,來解決儲存影象是負號'-',卻顯示為方塊的問題
+
+##### 以下是一段把整數1,2,3,4,...設定成兩位數字串 01,02,03,04,...
+def twodigit(n):  #將數值轉為二位數字串, 收到數字 n, 返回一個文字 n; 注意 def 該列最後要加":" 
+    if(n < 10):   #如果收到的n < 10, 才在10位數之處加上"0",if該列之最後 也要加“：”
+        retstr = '0' + str(n)  #
+    else:         # else之後 也要加“：”         
+        retstr = str(n) # 否則就直接轉成字串,存於retstr
+    return retstr #傳回 retstr 
+##### 以下是段把網頁爬蟲不順利的網址寫出在event.log裡
+def log(arg):
+	f=open('/Users/88693/Desktop/財經大數據 APP/data_association/event.log','a',encoding='utf-8')
+	f.writelines(arg+'\n')
+	f.close()
+##### 以下是一段讀取資料檔之網址的功能程式, 藉由傳來的股票代碼, 目標網頁的網址,
+##### 以及下載儲存的檔名及路徑
+def url_access(stock_code,urltail,filepath):
+    pd.options.mode.chained_assignment = None 
+    #取消顯示pandas資料重設警告（因為以下會不斷copy資料,即關掉copywarning）
+    if os.path.isfile(filepath):  #利用作業系統來判斷,確認目前path之下,該檔案是否存在,
+    # “不存在”傳回False, 跳至else直接建立檔案, 否則就再問是否overwrite
+       print('This file has been downloaded before.', stock_code)
+       Y_N=str(input("Do you want to overwrite it? Press 'Y' or 'N' to continue..."))
+       if Y_N.upper() == 'Y':              
+          outputfile = open(filepath, 'w', newline='',encoding='utf_8') 
+       #開啟預設的儲存檔案(存於filepath處), 'w'表示是overwrite,
+       # 寫入新一列newline是空值(但也要宣告''), 寫成csv格式, 而且是'utf-8'編碼
+          for i in range(0, 12): 
+        # range指明0~12,但i只會在從0(start)~11(end-1),連續讀取12個月的每日交易記錄
+             url_twse = urlbase + y_m[i] + urltail  #此組合的網址存有目標檔的資料
+    #組合網址：網址路徑包含年月, 月份皆是2位數,計算方法就是呼叫twodigit()
+             pdstock=readcsv(url_twse) #使用自訂的readcsv來讀入資料, 置於pdstock      
+             outputfile = open(filepath, 'a', newline='',encoding='utf_8')
+             # 開啟要寫出的檔案及路徑filepath
+             outputwriter = csv.writer(outputfile) 
+         #指明寫入動作是以csv格式寫入檔案, 設定寫入目的檔outputfile,
+         # 'a'表示是append,新一列newline空的(但也要宣告''),
+         #其實尚未寫入資料, 空的, 寫成csv格式要註明'utf-8'
+         #把這目的與動作並先置於outputwriter, 然後逐行寫入
+             if i==0: #i是否等於0, 要用"=="來比較, 平常使用"="用來assign 
+            #若是第1個月,就寫入欄位名稱,若是json data,其fields變數即存有欄位名,但csv檔並沒有,欄位名存於第三列
+                outputwriter.writerow(['日期','成交股數','成交金額','開盤價','最高價','最低價','收盤價','漲跌價差','成交筆數']) 
+            #對outputwriter執行writerow(寫入列),寫入第一列的欄位名,            
+            #包括日期/成交股數/成交金額/開盤價/最高價/最低價/收盤價/漲跌價差/成交筆數                         
+             for line in range(0,len(pdstock)):  
+            #寫入每月資料pdstock欄位下每列資料(從第0列寫到列長度-1)
+            #一般pdstock裡存有每月約有20列(每月的交易日數),每列有9欄資料
+            # the length of pdstock之最後一列為說明, 非資料,故-1列,不讀取
+                 outputwriter.writerow(pdstock.iloc[line])
+            #寫入iloc(index location)=line的該列資料
+            #對outputwriter執行writerow(寫入列),逐一寫入交易日的9個欄位資料,             
+             outputfile.close()  #關閉寫出csv的檔案
+       else:
+          print('Quit the running.')
+          sys.exit() 
+    else:
+       for i in range(0, 12):  #取0到2數字（雖然是range指明0~3,但i只會在從0(start)~2(end-1)）
+          url_twse = urlbase + y_m[i] + urltail  #此組合的網址存有目標檔的資料
+      #組合網址：網址路徑中的月份是2位數,計算方法就是呼叫twodigit()傳給它i,即它收到的n
+          pdstock=readcsv(url_twse)# 讀回網址的資料
+          outputfile = open(filepath, 'a', newline='',encoding='utf_8') 
+      #開啟預設的儲存檔案(存於filepath處), 'a'表示是append,新一列newline空的(但也要宣告''),
+      #其實尚未寫入資料, 空的, 寫成csv格式要註明'utf-8'
+          outputwriter = csv.writer(outputfile)  
+      #指明寫入動作是以csv格式寫入檔案, 設定寫入目的檔outputfile,
+      #把這目的與動作並先置於outputwriter, 然後逐行寫入
+          if i==0: #i是否等於0, 要用"=="來比較, 平常使用"="用來assign 
+         #若是第1個月,就寫入欄位名稱,若是json data,其fields變數即存有欄位名,但csv檔並沒有,欄位名存於第三列
+             outputwriter.writerow(['日期','成交股數','成交金額','開盤價','最高價','最低價','收盤價','漲跌價差','成交筆數']) 
+         #對outputwriter執行writerow(寫入列),寫入第一列的欄位名,            
+         #包括日期/成交股數/成交金額/開盤價/最高價/最低價/收盤價/漲跌價差/成交筆數
+          for line in range(0,len(pdstock)):  #寫入每月資料pdstock欄位下每列資料(從第0列寫到列長度-1)
+          #一般pdstock裡存有每月約有20列(每月的交易日數),每列有9欄資料
+              outputwriter.writerow(pdstock.iloc[line])
+          #寫入iloc(index location)=line的該列資料
+          #對outputwriter執行writerow(寫入列),逐一寫入每個交易日的9個欄位資料, 
+          outputfile.close()  #寫完之後, 關閉寫出csv的檔案
+
+#### 以下一段針對讀取特定網址的資料
+def readcsv (website): # 收到
+   try: #正常情況之下執行try下面的動，若發生異常，則中斷目前動作,執行except內的動作
+       webpage = urllib.request.urlopen(website)  #開啟網頁     
+       data = csv.reader(webpage.read().decode('ISO-8859-1').splitlines()) 
+       #讀取資料到data陣列中,台灣證交所的編碼格式:ISO-8859-1
+       stock=pd.DataFrame(data) #資料存成pandas dataframe格式/一次讀入1個月的交易資料
+       x=len(stock) #計算下載的當月份之資料長度(即列數)
+   #因為證交所提供的csv檔,內含許多非交易資料的說明文字,要先刪除之,僅留交易日的價量有關之資訊
+       stock.drop([0,1],axis=0,inplace=True)
+       #在原資料表裡,刪除第一(索引號0)第二列(索引號1),axis=0表示row
+       stock.drop([x-1,x-2,x-3,x-4,x-5,x-6],axis=0,inplace=True)
+       #在原資料表裡刪除倒數6列, 
+       stock.drop([9],axis=1,inplace=True)#在原資料表裡刪除第10行,axis=1表示column
+       stock.reset_index(inplace=True, drop=True)#對原資料表(刪除之餘)重新索引,
+   except:
+       print("Error: "+website) #有讀取網址異常時, 顯示error訊號
+       log(website)             #並且呼叫log, 寫出產生錯誤的網址     
+   finally:   # try的部份執行完了 就執行finally之下的動作
+       time.sleep(5)  #暫停一下,避免太快再讀取網頁,會使網頁伺服器抯擋爬蟲程式
+   return stock  #傳回從網址所讀到stock
+
+#####以下確定下載資料的期間:
+end_yr=2023 #設定年代
+end_mon=3   #設定月份
+start_yr=end_yr
+start_mon= (end_mon % 12) + 1#從本月回算前11個月;如本月是5月,回算至去年6月,正好是12個月
+if end_mon - 12 <0: 
+   start_yr = end_yr - 1 #計算前12個月是否會跨年,若會則起始年代要前一年
+y_m=[1,2,3,4,5,6,7,8,9,10,11,12]#預設一個含有12個年月的陣列
+for i in range(0, 12):  #索引0~12,填入欲下載資料的12個確定年月
+     y_m[i]=str(start_yr)+ twodigit(start_mon + i)#組合成yyyymm的年月格式
+     if start_mon + i > 12: #隨著月份遞增,一旦超過12月,要轉成下一年的1月,2月...
+        y_m[i]=str(end_yr)+ twodigit(start_mon + i -12)
+
+#####設定一個保留無法順利讀取的股票網址
+log_file='/Users/88693/Desktop/財經大數據 APP/data_association/event.log'
+f=open(log_file,'w',newline='',encoding='utf-8') #這裡用意是把event.log內容清空
+f.close() # 設定好之後先關閉event.log
+
+#台灣証券交易所的每日成交網頁https://www.twse.com.tw/zh/page/trading/exchange/STOCK_DAY.html  
+#https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date=20230301&stockNo=2303&response=csv
+#可上網站https://www.twse.com.tw/zh/trading/historical/stock-day.html 下載任一股票月成交記錄
+# 至browser之下載記錄裡查看此檔案, 可看到其網址, 按右鍵 複製連結網址, 即可得
+#以下是台灣證交所各股每日成交價的網址前半段, 主要是證交所網址
+urlbase = 'https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date='  
+
+#####以下逐步查詢欲下載的股票代碼:
+# codefile 儲存 欲網頁爬蟲的 股票代碼    
+codefile='/Users/88693/Desktop/財經大數據 APP/data_association/stock_code.xlsx'
+stockcode = pd.read_excel(codefile)  # 廠商名錄讀入置於此
+### 以下逐一讀取
+for i in range(len(stockcode)):
+    stock_code=stockcode['code'].iloc[i]
+    #先依股票代碼來組合網址, 網址後半段,主要是股票的代碼
+    urltail = '01&stockNo='+str(stock_code)+'&response=csv'  
+    # 設定欲儲存下載股價的檔名及路徑
+    filepath = '/Users/88693/Desktop/財經大數據 APP/data_association/'+'stockyear_'+y_m[0]+'_'+y_m[11]+'_'+str(stock_code)+'.csv' 
+    url_access(stock_code,urltail,filepath) # 呼叫讀取網址之資料
+
+#執行完畢之後, 恐有無法順利讀取的漏網之魚, 所以一定會根據log資料不斷地執行下段補充程式
+#直到查發現log已是空的, 即中斷跳出
+while True:
+   read_log = open(log_file, "r") #開啟 log_file
+   url_array = read_log.read().split('\n') #讀入, 並依分行符號 \n, 存成 list格式
+   read_log.close()  #關閉log,  接著重啟一個空白的log_file   
+   f=open(log_file,'w',newline='',encoding='utf-8') #這裡用意是把event.log內容清空
+   f.close()
+   if len(url_array[0])>0: # 執行取出的重讀網址, 如果是空的, 第一筆的長度必為0
+      for i in range(len(url_array)):
+          stock_code=url_array[i]
+          stock_code=stock_code[-17:-13] # 取出網址中的股票4碼
+          urltail = '01&stockNo='+str(stock_code)+'&response=csv' 
+          filepath = '/Users/88693/Desktop/財經大數據 APP/data_association/'+'stockyear_'+y_m[0]+'_'+y_m[11]+'_'+str(stock_code)+'.csv' 
+          url_access(stock_code,urltail,filepath)  #呼叫讀取網址的函數
+   else:     
+        break # 當log裡的第一筆之長度為0, 即中斷跳出
